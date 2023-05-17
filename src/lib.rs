@@ -8,6 +8,36 @@ struct RSeq {
     pub tail: Rc<dyn Fn() -> Self>,
 }
 
+struct RSeqIter {
+    curr: RSeq,
+}
+
+impl RSeqIter {
+    fn new(start: RSeq) -> Self {
+        Self { curr: start }
+    }
+}
+
+impl Iterator for RSeqIter {
+    type Item = i32;
+
+    fn next(&mut self) -> Option<Self::Item> {
+        let out = self.curr.head;
+        self.curr = self.curr.thunk();
+        Some(out)
+    }
+}
+
+impl IntoIterator for RSeq {
+    type Item = i32;
+
+    type IntoIter = RSeqIter;
+
+    fn into_iter(self) -> Self::IntoIter {
+        RSeqIter::new(self)
+    }
+}
+
 impl Clone for RSeq {
     fn clone(&self) -> Self {
         Self {
@@ -173,5 +203,15 @@ mod tests {
         let s = RSeq::incr(0).filter(|n| n % 2 == 0);
         let t = RSeq::incr(0).filter(|n| n % 2 != 0);
         assert_eq!(RSeq::interleave(&s, &t).take(5), vec![0, 1, 2, 3, 4]);
+    }
+
+    #[test]
+    fn iterator() {
+        let s = RSeq::incr(0).filter(|n| n % 2 == 0);
+        let iter = s.into_iter();
+        assert_eq!(
+            iter.map(|n| n * n).take(10).collect::<Vec<i32>>(),
+            vec![0, 4, 16, 36, 64, 100, 144, 196, 256, 324]
+        );
     }
 }
