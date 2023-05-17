@@ -3,23 +3,25 @@ use std::{
     rc::Rc,
 };
 
-struct RSeq {
-    pub head: i32,
+use num_traits::Num;
+
+struct RSeq<T> {
+    pub head: T,
     pub tail: Rc<dyn Fn() -> Self>,
 }
 
-struct RSeqIter {
-    curr: RSeq,
+struct RSeqIter<T> {
+    curr: RSeq<T>,
 }
 
-impl RSeqIter {
-    fn new(start: RSeq) -> Self {
+impl<T> RSeqIter<T> {
+    fn new(start: RSeq<T>) -> Self {
         Self { curr: start }
     }
 }
 
-impl Iterator for RSeqIter {
-    type Item = i32;
+impl<T: Copy + 'static> Iterator for RSeqIter<T> {
+    type Item = T;
 
     fn next(&mut self) -> Option<Self::Item> {
         let out = self.curr.head;
@@ -28,17 +30,17 @@ impl Iterator for RSeqIter {
     }
 }
 
-impl IntoIterator for RSeq {
-    type Item = i32;
+impl<T: Copy + 'static> IntoIterator for RSeq<T> {
+    type Item = T;
 
-    type IntoIter = RSeqIter;
+    type IntoIter = RSeqIter<T>;
 
     fn into_iter(self) -> Self::IntoIter {
         RSeqIter::new(self)
     }
 }
 
-impl Clone for RSeq {
+impl<T: Copy> Clone for RSeq<T> {
     fn clone(&self) -> Self {
         Self {
             head: self.head,
@@ -47,18 +49,27 @@ impl Clone for RSeq {
     }
 }
 
-impl RSeq {
-    fn cnst(v: i32) -> Self {
+impl<T> RSeq<T>
+where
+    T: Num + Copy + 'static,
+{
+    fn incr(start: T) -> Self {
+        let next = start + T::one();
+        Self {
+            head: start,
+            tail: Rc::new(move || Self::incr(next)),
+        }
+    }
+}
+
+impl<T> RSeq<T>
+where
+    T: Copy + 'static,
+{
+    fn cnst(v: T) -> Self {
         Self {
             head: v,
             tail: Rc::new(move || Self::cnst(v)),
-        }
-    }
-
-    fn incr(start: i32) -> Self {
-        Self {
-            head: start,
-            tail: Rc::new(move || Self::incr(start + 1)),
         }
     }
 
@@ -66,7 +77,7 @@ impl RSeq {
         (self.tail)()
     }
 
-    fn take(&self, n: usize) -> Vec<i32> {
+    fn take(&self, n: usize) -> Vec<T> {
         let mut out = Vec::with_capacity(n);
         out.push(self.head);
         let mut curr = self.thunk();
@@ -77,15 +88,15 @@ impl RSeq {
         out
     }
 
-    fn map(&self, f: impl Fn(i32) -> i32 + Copy + 'static) -> Self {
+    fn map<M>(&self, f: impl Fn(T) -> M + Copy + 'static) -> RSeq<M> {
         let tail = self.thunk();
-        Self {
+        RSeq {
             head: f(self.head),
             tail: Rc::new(move || tail.map(f)),
         }
     }
 
-    fn filter(&self, f: impl Fn(i32) -> bool + Copy + 'static) -> Self {
+    fn filter(&self, f: impl Fn(T) -> bool + Copy + 'static) -> Self {
         let tail = self.thunk();
         if f(self.head) {
             Self {
@@ -107,8 +118,11 @@ impl RSeq {
     }
 }
 
-impl Add for &RSeq {
-    type Output = RSeq;
+impl<T> Add for &RSeq<T>
+where
+    T: Add<Output = T> + Copy + 'static,
+{
+    type Output = RSeq<T>;
 
     fn add(self, rhs: Self) -> Self::Output {
         let ltail = self.thunk();
@@ -120,8 +134,11 @@ impl Add for &RSeq {
     }
 }
 
-impl Mul for &RSeq {
-    type Output = RSeq;
+impl<T> Mul for &RSeq<T>
+where
+    T: Mul<Output = T> + Copy + 'static,
+{
+    type Output = RSeq<T>;
 
     fn mul(self, rhs: Self) -> Self::Output {
         let ltail = self.thunk();
@@ -133,8 +150,11 @@ impl Mul for &RSeq {
     }
 }
 
-impl Sub for &RSeq {
-    type Output = RSeq;
+impl<T> Sub for &RSeq<T>
+where
+    T: Sub<Output = T> + Copy + 'static,
+{
+    type Output = RSeq<T>;
 
     fn sub(self, rhs: Self) -> Self::Output {
         let ltail = self.thunk();
@@ -146,8 +166,11 @@ impl Sub for &RSeq {
     }
 }
 
-impl Div for &RSeq {
-    type Output = RSeq;
+impl<T> Div for &RSeq<T>
+where
+    T: Div<Output = T> + Copy + 'static,
+{
+    type Output = RSeq<T>;
 
     fn div(self, rhs: Self) -> Self::Output {
         let ltail = self.thunk();
