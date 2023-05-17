@@ -116,6 +116,14 @@ where
             tail: Rc::new(move || Self::interleave(&rclone, &ltail)),
         }
     }
+
+    fn unfold(start: T, f: impl Fn(T) -> T + Copy + 'static) -> Self {
+        let next = f(start);
+        Self {
+            head: start,
+            tail: Rc::new(move || Self::unfold(next, f)),
+        }
+    }
 }
 
 impl<T> Add for &RSeq<T>
@@ -236,5 +244,11 @@ mod tests {
             iter.map(|n| n * n).take(10).collect::<Vec<i32>>(),
             vec![0, 4, 16, 36, 64, 100, 144, 196, 256, 324]
         );
+    }
+
+    #[test]
+    fn unfold() {
+        let s = RSeq::unfold((0, 1), |(x, y)| (y, x + y)).map(|(x, _)| x);
+        assert_eq!(s.take(10), vec![0, 1, 1, 2, 3, 5, 8, 13, 21, 34]);
     }
 }
